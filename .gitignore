@@ -1,0 +1,10 @@
+**/__pycache__/
+*.py[cod]
+*.so
+*.swp
+*.o
+*.d
+*.a
+*.so
+test
+build
