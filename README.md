@@ -17,17 +17,25 @@ FFmpeg >= 3.3
 
 ## Benchmark on my PC
 > ============ Benchmark: Context creating and destroying ===========  
-> 0.322ms / ops  
+> 0.328ms / ops  
 > ============ Benchmark: Read first 10 frames ===========  
-> 16.183ms / ops  
+> 16.245ms / ops  
 > ============ Benchmark: Seek ===========  
-> 0.333ms / ops  
+> 0.328ms / ops  
 > ============ Benchmark: Seek and grab KeyFrame ===========  
-> 3.028ms / ops  
+> 2.984ms / ops  
 > ============ Benchmark: Seek and grab non-keyframe (worst case) ===========  
-> 25.574ms  / ops  
+> 24.624ms / ops  
 > ============ Benchmark: Reading the whole video frame by frame ===========  
-> 485.156ms / ops  
+> 480.528ms / ops  
+> ============ Benchmark: Seek and grab non-keyframe (worst case) (slice level Parallel) ===========  
+> 24.990ms / ops  
+> ============ Benchmark: Reading the whole video frame by frame (slice level Parallel) ===========  
+> 481.609ms / ops  
+> ============ Benchmark: Seek and grab non-keyframe (worst case) (frame level Parallel) ===========  
+> 11.684ms / ops  
+> ============ Benchmark: Reading the whole video frame by frame (frame level Parallel) ===========  
+> 144.113ms / ops  
 
 ## QAs and Recommendations
 1. Why no frame-based access?
