@@ -188,7 +188,7 @@ void release_decoder(struct FastvioCtx* ctx) {
 
 /* Initialize demuxer, decoder, swscale */
 int init_decoder(struct FastvioCtx* ctx) {
-    int ret = 0;
+    //int ret = 0;
     /* open input file, and allocate format context */
     if (avformat_open_input(&ctx->fmt_ctx, ctx->src_filename, NULL, NULL) < 0) { // 1/10000s
         fprintf(stderr, "Could not open source file %s\n", ctx->src_filename);
@@ -251,8 +251,9 @@ int init_decoder(struct FastvioCtx* ctx) {
     ctx->frame = av_frame_alloc();
     if (!ctx->frame) {
         fprintf(stderr, "Could not allocate frame\n");
-        ret = AVERROR(ENOMEM);
+        //ret = AVERROR(ENOMEM);
         release_decoder(ctx);
+        return -1;
     }
     /* initialize packet, set data to NULL, let the demuxer fill it */
     av_init_packet(&ctx->pkt);
@@ -347,7 +348,7 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args) {
         // fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
 	    npy_intp dims[] = {ctx->height, ctx->width, 3};
 	    PyObject *img = PyArray_SimpleNew(3, dims, NPY_UINT8);
-	    char* data_ptr = PyArray_BYTES((PyArrayObject*)img);
+	    uint8_t* data_ptr = (uint8_t*)PyArray_BYTES((PyArrayObject*)img);
 	    ctx->video_dst_data[0] = data_ptr;
 	    ctx->video_dst_data[1] = NULL;
 	    ctx->video_dst_data[2] = NULL;
@@ -401,7 +402,7 @@ PyObject * fastvio_get_duration(PyObject *self, PyObject *args) {
 		return NULL;
 	struct FastvioCtx* ctx = (struct FastvioCtx*)PyLong_AsVoidPtr(handle);
 
-    AVStream *st = ctx->fmt_ctx->streams[ctx->video_stream_idx];
+    //AVStream *st = ctx->fmt_ctx->streams[ctx->video_stream_idx];
     
     int64_t duration = ctx->fmt_ctx->duration;
     //duration = st->duration;
