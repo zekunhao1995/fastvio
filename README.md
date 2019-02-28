@@ -42,7 +42,7 @@ FFmpeg >= 3.3
 3. Too slow when opening some video formats.
   * Some video containers such as MPEG and some flv, lack header or necessary metadata.
   * Recommendation: Remux them to mkv.
-4. Why no multithreading or hardware acceleration?
+4. Why no hardware acceleration?
   * This library is designed for the scenario that many individual instances are running in parallel reading many individual videos (for example, dataloader for deep learning). In this scenario, overall thoughtput, instead of the speed of a single instance, is of utmost importance. Threading and opening hardware contexts introduce overheads and may not work well when there are a lot of running instances.
 5. Are there any video formats that are:
   * Friendly for random access;

@@ -4,7 +4,7 @@
 #include <Python.h>
 
 void init_ffmpeg();
-PyObject * fastvio_open(PyObject *, PyObject *);
+PyObject * fastvio_open(PyObject *, PyObject *, PyObject *);
 PyObject * fastvio_close(PyObject *, PyObject *);
 PyObject * fastvio_grab_frame(PyObject *, PyObject *);
 PyObject * fastvio_seek(PyObject *, PyObject *);

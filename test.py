@@ -24,6 +24,8 @@ print(fastvio)
 vid_path = './testvga.mkv'
 
 vio = fastvio.open(vid_path)
+
+
 print("Duration: {}us".format(fastvio.get_duration(vio)))
 frame, pts = fastvio.grab_frame(vio)
 print("Pts of first frame: {}".format(pts))
@@ -108,6 +110,49 @@ for i in range(5):
 end = time.time()
 print("{:.3f}ms / ops".format((end-start)/5*1000))
 
+print("============ Benchmark: Seek and grab non-keyframe (worst case) (slice level Parallel) ===========")
+start = time.time()
+for i in range(num_samples):
+    vio = fastvio.open(vid_path, thread_mode='thread_slice', num_threads=8)
+    fastvio.seek(vio, 9200000) # Last frame before another keyframe, thus worst case ^_^
+    fastvio.grab_frame(vio)
+    fastvio.close(vio)
+end = time.time()
+print("{:.3f}ms / ops".format((end-start)/num_samples*1000))
+
+print("============ Benchmark: Reading the whole video frame by frame (slice level Parallel) ===========")
+start = time.time()
+for i in range(5):
+    vio = fastvio.open(vid_path, thread_mode='thread_slice', num_threads=8)
+    while True:
+        ret = fastvio.grab_frame(vio)
+        if ret is None:
+            break # end of file
+    fastvio.close(vio)
+end = time.time()
+print("{:.3f}ms / ops".format((end-start)/5*1000))
+
+print("============ Benchmark: Seek and grab non-keyframe (worst case) (frame level Parallel) ===========")
+start = time.time()
+for i in range(num_samples):
+    vio = fastvio.open(vid_path, thread_mode='thread_frame', num_threads=8)
+    fastvio.seek(vio, 9200000) # Last frame before another keyframe, thus worst case ^_^
+    fastvio.grab_frame(vio)
+    fastvio.close(vio)
+end = time.time()
+print("{:.3f}ms / ops".format((end-start)/num_samples*1000))
+
+print("============ Benchmark: Reading the whole video frame by frame (frame level Parallel) ===========")
+start = time.time()
+for i in range(5):
+    vio = fastvio.open(vid_path, thread_mode='thread_frame', num_threads=8)
+    while True:
+        ret = fastvio.grab_frame(vio)
+        if ret is None:
+            break # end of file
+    fastvio.close(vio)
+end = time.time()
+print("{:.3f}ms / ops".format((end-start)/5*1000))
 
 print("============ Visual inspection ===========")
 import matplotlib.pyplot as plt

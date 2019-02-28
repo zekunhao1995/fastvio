@@ -14,7 +14,7 @@ char addfunc_docs[] = "Add two numbers function.";
 static PyMethodDef fastvio_funcs[] = {
 	{	"open",
 		(PyCFunction)fastvio_open,
-		METH_VARARGS,
+		METH_VARARGS | METH_KEYWORDS,
 		"Open a video file. Return pointer to its ffmpeg context."},
     {	"close",
 		(PyCFunction)fastvio_close,

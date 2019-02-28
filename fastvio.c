@@ -15,6 +15,7 @@
 #define FASTVIO_FLAG_OUT_OF_PACKET (0)
 #define FASTVIO_FLAG_GOT_FIRST_FRAME (1)
 #define FASTVIO_FLAG_GOT_LAST_FRAME (2)
+#define FASTVIO_FLAG_FLUSHED (3)
 #define TEST_FLAG(number,bit) ((number>>bit)&(1UL))
 #define SET_FLAG(number,bit) (number|=(1UL<<bit))
 #define CLEAR_FLAG(number,bit) (number&=(~(1UL<<bit)))
@@ -63,6 +64,10 @@ struct FastvioCtx* create_fastvio_ctx() {
 //static struct FastvioCtx ctx_stor[128];
 //static int ctx_stor_cnt = 0;
 
+/*
+ * It will be more natural if we split this into send_packet and receive_packet.
+ * Better readability & much cleaner decoding state machine.
+ */
 static int decode_packet(struct FastvioCtx* ctx, int *got_frame, int cached)
 {
     AVPacket* pkt = &ctx->pkt;
@@ -144,7 +149,7 @@ static void yuv420p_2_rgb24(struct FastvioCtx* ctx) {
               ctx->height, ctx->video_dst_data, ctx->video_dst_linesize);
 }
 
-static int open_codec_context(int stream_index, AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx)
+static int open_codec_context(int stream_index, AVCodecContext **dec_ctx, AVFormatContext *fmt_ctx, int thread_mode, int num_threads)
 {
     int ret;
     AVStream *st;
@@ -173,6 +178,12 @@ static int open_codec_context(int stream_index, AVCodecContext **dec_ctx, AVForm
         return ret;
     }
 
+    if (thread_mode) {
+        (*dec_ctx)->thread_type = thread_mode;
+        (*dec_ctx)->thread_count = num_threads;
+
+    }
+    //(*dec_ctx)->thread_type = FF_THREAD_SLICE; FF_THREAD_FRAME;
     /* Init the decoders, without reference counting */
     av_dict_set(&opts, "refcounted_frames", "0", 0); // No ref counting. Frame will be freed on the next call to decode()
     if ((ret = avcodec_open2(*dec_ctx, dec, &opts)) < 0) {
@@ -192,7 +203,7 @@ void release_decoder(struct FastvioCtx* ctx) {
 }
 
 /* Initialize demuxer, decoder, swscale */
-int init_decoder(struct FastvioCtx* ctx) {
+int init_decoder(struct FastvioCtx* ctx, int thread_mode, int num_threads) {
     //int ret = 0;
     /* open input file, and allocate format context */
     if (avformat_open_input(&ctx->fmt_ctx, ctx->src_filename, NULL, NULL) < 0) { // 1/10000s
@@ -216,7 +227,7 @@ int init_decoder(struct FastvioCtx* ctx) {
         return -1;
     }
     
-    if (open_codec_context(ctx->video_stream_idx, &ctx->video_dec_ctx, ctx->fmt_ctx) >= 0) {
+    if (open_codec_context(ctx->video_stream_idx, &ctx->video_dec_ctx, ctx->fmt_ctx, thread_mode, num_threads) >= 0) {
         /* allocate image where the decoded image will be put */
         ctx->width = ctx->video_dec_ctx->width;
         ctx->height = ctx->video_dec_ctx->height;
@@ -274,17 +285,38 @@ void init_ffmpeg() {
     printf("[FastVIO] init done!\n");
 }
 
-PyObject * fastvio_open(PyObject *self, PyObject *args) {
+PyObject * fastvio_open(PyObject *self, PyObject *args, PyObject *kwargs) {
 	char *filename;
-	if(!PyArg_ParseTuple(args, "s", &filename))
-		return NULL;
+	char *thread_mode_str = NULL;
+	int num_threads = 0; // auto thread count by default
+    static char* kwlist[] = {"","thread_mode","num_threads",NULL};
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "s|si", kwlist, &filename, &thread_mode_str, &num_threads))
+        return NULL;
+
+	//if(!PyArg_ParseTuple(args, "s|si", &filename,&thread_mode,&num_threads))
+	//	return NULL;
 	//printf("Trying to open %s\n", filename);
+    int thread_mode = 0;
+	if (thread_mode_str) {
+	    if (strcmp(thread_mode_str, "thread_slice") == 0) {
+	        thread_mode = FF_THREAD_SLICE;
+	    }
+        else if (strcmp(thread_mode_str, "thread_frame") == 0) {
+            thread_mode = FF_THREAD_FRAME;
+        }
+        else {
+	        PyErr_SetString(MyError, "[FastVIO Open()] Unrecognized thread_mode. Only supports: thread_slice and thread_frame.");
+	        return NULL;
+        }
+        // set num_threads here
+	}
+	
 	
     struct FastvioCtx* ctx = create_fastvio_ctx();
     Py_INCREF(args); // Borrow filename
 	ctx->src_filename = filename;
 	
-	if(init_decoder(ctx) < 0) {
+	if(init_decoder(ctx, thread_mode, num_threads) < 0) {
 	    PyErr_SetString(MyError, "[FastVIO Open()] Error when initializing demuxer and decoder.");
 	    return NULL;
 	}
@@ -314,38 +346,46 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args) {
     
     int ret = 0;
     int got_frame = 0;
-    int flushed = 0;
     do {
         if (!TEST_FLAG(ctx->flags, FASTVIO_FLAG_GOT_LAST_FRAME)) {
             while (1) {
                 if (!TEST_FLAG(ctx->flags, FASTVIO_FLAG_OUT_OF_PACKET)) {
                     ret = av_read_frame(ctx->fmt_ctx, &ctx->pkt);
+                    //printf("         packet: %ld\n",ctx->pkt.pts);
                     if (ret < 0) {
                         SET_FLAG(ctx->flags, FASTVIO_FLAG_OUT_OF_PACKET);
                         (ctx->pkt).data = NULL;
                         (ctx->pkt).size = 0;
+                    //    printf("# Out of pocket\n");
                     }
                 }
                 if (!TEST_FLAG(ctx->flags, FASTVIO_FLAG_OUT_OF_PACKET)) {
+                    //printf("consumed packet: %ld\n",ctx->pkt.pts);
                     ret = decode_packet(ctx, &got_frame, 0);
                     if (ret < 0)
                         break;
                     if (TEST_FLAG(ctx->flags, FASTVIO_FLAG_GOT_FIRST_FRAME) && got_frame) {
+                    //    printf("# Got a frame    %ld\n", ctx->frame->pts);
                         break;
                     } // Now haven't got first frame or haven't got any frame
                     else if (got_frame) {
+                    //    printf("# Got first frame\n");
                         SET_FLAG(ctx->flags, FASTVIO_FLAG_GOT_FIRST_FRAME);
                         break;
                     }
                     // In this round nothing is returned by the decoder. continue sending package.
                 }
                 else {
-                    decode_packet(ctx, &got_frame, flushed); // Flush decoder
-                    flushed = 1;
+                    decode_packet(ctx, &got_frame, TEST_FLAG(ctx->flags, FASTVIO_FLAG_FLUSHED)); // Flush decoder
+                    SET_FLAG(ctx->flags, FASTVIO_FLAG_FLUSHED);
+                    //printf("# Flushing \n");
                     if (!got_frame) {
                         SET_FLAG(ctx->flags, FASTVIO_FLAG_GOT_LAST_FRAME);
-                        break;
+                    //    printf("# Got last frame \n");
                     }
+                    //else
+                    //    printf("# Got a frame    %ld\n", ctx->frame->pts);
+                    break;
                 }
             }
         }
@@ -398,6 +438,7 @@ PyObject * fastvio_seek(PyObject *self, PyObject *args) {
 	
 	ctx->seek_target_pts = target_pts;
 	avcodec_flush_buffers(ctx->video_dec_ctx);
+	CLEAR_FLAG(ctx->flags, FASTVIO_FLAG_FLUSHED);
 	CLEAR_FLAG(ctx->flags, FASTVIO_FLAG_GOT_LAST_FRAME);
 	CLEAR_FLAG(ctx->flags, FASTVIO_FLAG_OUT_OF_PACKET);
 	CLEAR_FLAG(ctx->flags, FASTVIO_FLAG_GOT_FIRST_FRAME);
