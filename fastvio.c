@@ -86,8 +86,11 @@ static int decode_packet(struct FastvioCtx* ctx, int *got_frame, int cached)
             *got_frame = 1;
         else if (ret == AVERROR_EOF)
             return 0;
+        else if (ret == AVERROR(EAGAIN)) { // Got B-frame (which need to be decoded from both sides)
+            return 0;
+        }
         else if (ret < 0) {
-            fprintf(stderr, "Error decoding video frame (%s)\n", av_err2str(ret));
+            fprintf(stderr, "Error decoding video frame (%s)\n", av_err2str(ret)); // Resource temporarily unavailable
             return ret;
         }
         if (*got_frame) {
@@ -331,14 +334,14 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args) {
                         SET_FLAG(ctx->flags, FASTVIO_FLAG_GOT_FIRST_FRAME);
                         break;
                     }
-                    continue;
+                    // In this round nothing is returned by the decoder. continue sending package.
                 }
                 else {
                     decode_packet(ctx, &got_frame, 1);
                     if (!got_frame) {
                         SET_FLAG(ctx->flags, FASTVIO_FLAG_GOT_LAST_FRAME);
+                        break;
                     }
-                    break;
                 }
             }
         }
@@ -367,6 +370,10 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args) {
         Py_RETURN_NONE;
 }
 
+/*
+ * Here we have a possible optimization: do not actually seek if current_pts < target_pts < next_keyframe_pts
+ * However, seems that FFmpeg doesn't have a api for getting keyframe pts.
+ */
 PyObject * fastvio_seek(PyObject *self, PyObject *args) {
     PyObject* handle;
     PyObject* pts_obj;
