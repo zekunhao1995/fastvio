@@ -76,10 +76,12 @@ static int decode_packet(struct FastvioCtx* ctx, int *got_frame, int cached)
     if (pkt->stream_index == ctx->video_stream_idx) {
         /* decode video frame */
         // ret = avcodec_decode_video2(video_dec_ctx, frame, got_frame, &pkt);
-        ret = avcodec_send_packet(video_dec_ctx, pkt);
-        if (ret < 0) {
-            fprintf(stderr, "Error sending package (%s)\n", av_err2str(ret));
-            return ret;
+        if (!cached) {
+            ret = avcodec_send_packet(video_dec_ctx, pkt);
+            if (ret < 0) {
+                fprintf(stderr, "Error sending package (%s)\n", av_err2str(ret));
+                return ret;
+            }
         }
         ret = avcodec_receive_frame(video_dec_ctx, frame);
         if (ret == 0)
@@ -312,6 +314,7 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args) {
     
     int ret = 0;
     int got_frame = 0;
+    int flushed = 0;
     do {
         if (!TEST_FLAG(ctx->flags, FASTVIO_FLAG_GOT_LAST_FRAME)) {
             while (1) {
@@ -337,7 +340,8 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args) {
                     // In this round nothing is returned by the decoder. continue sending package.
                 }
                 else {
-                    decode_packet(ctx, &got_frame, 1);
+                    decode_packet(ctx, &got_frame, flushed); // Flush decoder
+                    flushed = 1;
                     if (!got_frame) {
                         SET_FLAG(ctx->flags, FASTVIO_FLAG_GOT_LAST_FRAME);
                         break;
@@ -393,6 +397,7 @@ PyObject * fastvio_seek(PyObject *self, PyObject *args) {
 	}
 	
 	ctx->seek_target_pts = target_pts;
+	avcodec_flush_buffers(ctx->video_dec_ctx);
 	CLEAR_FLAG(ctx->flags, FASTVIO_FLAG_GOT_LAST_FRAME);
 	CLEAR_FLAG(ctx->flags, FASTVIO_FLAG_OUT_OF_PACKET);
 	CLEAR_FLAG(ctx->flags, FASTVIO_FLAG_GOT_FIRST_FRAME);
