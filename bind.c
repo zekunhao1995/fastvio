@@ -22,7 +22,7 @@ static PyMethodDef fastvio_funcs[] = {
 		"Close a fastvio handle."},
     {	"grab_frame",
 		(PyCFunction)fastvio_grab_frame,
-		METH_VARARGS,
+		METH_VARARGS | METH_KEYWORDS,
 		"Grab a frame to numpy array."},
     {	"seek",
 		(PyCFunction)fastvio_seek,

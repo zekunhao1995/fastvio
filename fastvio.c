@@ -338,12 +338,15 @@ PyObject * fastvio_close(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
-PyObject * fastvio_grab_frame(PyObject *self, PyObject *args) {
+PyObject * fastvio_grab_frame(PyObject *self, PyObject *args, PyObject *kwargs) {
+    static char* kwlist[] = {"","keyframe_only",NULL};
     PyObject *handle;
-    if(!PyArg_ParseTuple(args, "O", &handle))
-		return NULL;
-	struct FastvioCtx* ctx = (struct FastvioCtx*)PyLong_AsVoidPtr(handle);
-    
+    int kf_only = 0;
+    if(!PyArg_ParseTupleAndKeywords(args, kwargs, "O|p", kwlist, &handle, &kf_only)) {
+        return NULL;
+    }
+	struct FastvioCtx* ctx = (struct FastvioCtx*)PyLong_AsVoidPtr(handle);        
+
     int ret = 0;
     int got_frame = 0;
     do {
@@ -357,6 +360,9 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args) {
                         (ctx->pkt).data = NULL;
                         (ctx->pkt).size = 0;
                     //    printf("# Out of pocket\n");
+                    }
+                    if(kf_only && !((ctx->pkt).flags & AV_PKT_FLAG_KEY)) {
+                        continue; // Discard non-keyframes
                     }
                 }
                 if (!TEST_FLAG(ctx->flags, FASTVIO_FLAG_OUT_OF_PACKET)) {

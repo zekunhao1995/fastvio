@@ -100,15 +100,31 @@ print("{:.3f}ms / ops".format((end-start)/num_samples*1000))
 
 print("============ Benchmark: Reading the whole video frame by frame ===========")
 start = time.time()
+cnt = 0
 for i in range(5):
     vio = fastvio.open(vid_path)
     while True:
         ret = fastvio.grab_frame(vio)
+        cnt += 1
         if ret is None:
             break # end of file
     fastvio.close(vio)
 end = time.time()
-print("{:.3f}ms / ops".format((end-start)/5*1000))
+print("{:.3f}ms / ops, {} frames".format((end-start)/5*1000, cnt/5))
+
+print("============ Benchmark: Reading the whole video's keyframes ===========")
+start = time.time()
+cnt = 0
+for i in range(5):
+    vio = fastvio.open(vid_path)
+    while True:
+        ret = fastvio.grab_frame(vio, keyframe_only=True)
+        cnt += 1
+        if ret is None:
+            break # end of file
+    fastvio.close(vio)
+end = time.time()
+print("{:.3f}ms / ops, {} frames".format((end-start)/5*1000, cnt/5))
 
 print("============ Benchmark: Seek and grab non-keyframe (worst case) (slice level Parallel) ===========")
 start = time.time()
@@ -135,7 +151,7 @@ print("{:.3f}ms / ops".format((end-start)/5*1000))
 print("============ Benchmark: Seek and grab non-keyframe (worst case) (frame level Parallel) ===========")
 start = time.time()
 for i in range(num_samples):
-    vio = fastvio.open(vid_path, thread_mode='thread_frame', num_threads=8)
+    vio = fastvio.open(vid_path, thread_mode='thread_frame')
     fastvio.seek(vio, 9200000) # Last frame before another keyframe, thus worst case ^_^
     fastvio.grab_frame(vio)
     fastvio.close(vio)
@@ -145,7 +161,7 @@ print("{:.3f}ms / ops".format((end-start)/num_samples*1000))
 print("============ Benchmark: Reading the whole video frame by frame (frame level Parallel) ===========")
 start = time.time()
 for i in range(5):
-    vio = fastvio.open(vid_path, thread_mode='thread_frame', num_threads=8)
+    vio = fastvio.open(vid_path, thread_mode='thread_frame')
     while True:
         ret = fastvio.grab_frame(vio)
         if ret is None:
