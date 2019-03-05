@@ -411,9 +411,11 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args, PyObject *kwargs) 
 	    ////memcpy((void*)data_ptr, (const void*)(ctx->video_dst_data)[0], ctx->height*ctx->width*3);
 	    yuv420p_2_rgb24(ctx);
 	    PyObject *pts = PyLong_FromLongLong(ctx->current_pts);
-	    PyObject *ret_tup = PyTuple_Pack(2, img, pts);
+	    PyObject *is_kf = PyBool_FromLong(ctx->frame->key_frame);
+	    PyObject *ret_tup = PyTuple_Pack(3, img, pts, is_kf);
 	    Py_DECREF(img);
 	    Py_DECREF(pts);
+	    Py_DECREF(is_kf);
         return ret_tup;
     }
     else

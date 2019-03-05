@@ -27,22 +27,22 @@ vio = fastvio.open(vid_path)
 
 
 print("Duration: {}us".format(fastvio.get_duration(vio)))
-frame, pts = fastvio.grab_frame(vio)
+frame, pts, _ = fastvio.grab_frame(vio)
 print("Pts of first frame: {}".format(pts))
 print("Try seeking. seek() will seek to the closest frame that has pts >= given pts.")
 fastvio.seek(vio, 6300000)
-frame, pts = fastvio.grab_frame(vio)
+frame, pts, _ = fastvio.grab_frame(vio)
 print(pts)
 print("Do some consecutive reading. This is much more efficient than randomly seeking.")
-frame, pts = fastvio.grab_frame(vio)
+frame, pts, _ = fastvio.grab_frame(vio)
 print(pts)
-frame, pts = fastvio.grab_frame(vio)
+frame, pts, _ = fastvio.grab_frame(vio)
 print(pts)
-frame, pts = fastvio.grab_frame(vio)
+frame, pts, _ = fastvio.grab_frame(vio)
 print(pts)
 print("This is the last frame. Note that its pts is lower than duration since it has its own duration.")
 fastvio.seek(vio, 10660000) # This is the pts of the last frame of testvga.mkv
-frame, pts = fastvio.grab_frame(vio)
+frame, pts, _ = fastvio.grab_frame(vio)
 print(pts)
 print("============ More debugging info follows ===========")
 fastvio.print_dbg(vio)
@@ -119,9 +119,10 @@ for i in range(5):
     vio = fastvio.open(vid_path)
     while True:
         ret = fastvio.grab_frame(vio, keyframe_only=True)
-        cnt += 1
         if ret is None:
             break # end of file
+        cnt += 1
+        assert ret[2] == True
     fastvio.close(vio)
 end = time.time()
 print("{:.3f}ms / ops, {} frames".format((end-start)/5*1000, cnt/5))
