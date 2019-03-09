@@ -349,7 +349,7 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args, PyObject *kwargs) 
 
     int ret = 0;
     int got_frame = 0;
-    do {
+    while (1) {
         if (!TEST_FLAG(ctx->flags, FASTVIO_FLAG_GOT_LAST_FRAME)) {
             while (1) {
                 if (!TEST_FLAG(ctx->flags, FASTVIO_FLAG_OUT_OF_PACKET)) {
@@ -362,7 +362,8 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args, PyObject *kwargs) 
                     //    printf("# Out of pocket\n");
                     }
                     if(kf_only && !((ctx->pkt).flags & AV_PKT_FLAG_KEY)) {
-                        continue; // Discard non-keyframes
+                        avcodec_flush_buffers(ctx->video_dec_ctx);
+                        continue; // Discard non-keyframe packages
                     }
                 }
                 if (!TEST_FLAG(ctx->flags, FASTVIO_FLAG_OUT_OF_PACKET)) {
@@ -395,7 +396,17 @@ PyObject * fastvio_grab_frame(PyObject *self, PyObject *args, PyObject *kwargs) 
                 }
             }
         }
-    } while (got_frame && (ctx->current_pts < ctx->seek_target_pts));
+        
+        if (kf_only) { // For some reason, some keyframe packets produce non-keyframe frames... Filter them out.
+            if (got_frame && !ctx->frame->key_frame)
+                continue;
+        }
+        else {
+            if (got_frame && (ctx->current_pts < ctx->seek_target_pts))
+                continue;
+        }
+        break;
+    }
     
     if (got_frame) {
         // fwrite(video_dst_data[0], 1, video_dst_bufsize, video_dst_file);
