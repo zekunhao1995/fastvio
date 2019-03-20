@@ -27,6 +27,7 @@ struct FastvioCtx
     AVCodecContext *video_dec_ctx;
     struct SwsContext *sws_context;
     int width, height;
+    enum AVPixelFormat pix_fmt;
     const char *src_filename;
     uint8_t *video_dst_data[4];
     int      video_dst_linesize[4];
@@ -64,6 +65,14 @@ struct FastvioCtx* create_fastvio_ctx() {
 //static struct FastvioCtx ctx_stor[128];
 //static int ctx_stor_cnt = 0;
 
+static void init_swscale(struct FastvioCtx* ctx, enum AVPixelFormat src_pix_fmt)
+{
+    ctx->sws_context = sws_getContext(ctx->video_dec_ctx->width, ctx->video_dec_ctx->height, src_pix_fmt, // src
+                                    ctx->video_dec_ctx->width, ctx->video_dec_ctx->height, AV_PIX_FMT_RGB24,   // dst
+                                    0, NULL, NULL, NULL);
+    
+    //printf("swscale srcRange: %d\n",ctx->sws_context->srcRange);
+}
 /*
  * It will be more natural if we split this into send_packet and receive_packet.
  * Better readability & much cleaner decoding state machine.
@@ -100,9 +109,16 @@ static int decode_packet(struct FastvioCtx* ctx, int *got_frame, int cached)
             fprintf(stderr, "Error decoding video frame (%s)\n", av_err2str(ret)); // Resource temporarily unavailable
             return ret;
         }
+        // AV_PIX_FMT_YUV420P
         if (*got_frame) {
+            /* If this is the first frame we get, init swscale and set ctx->pix_fmt */
+            if (ctx->sws_context == NULL) {
+                printf("color_range: %d\n",ctx->video_dec_ctx->color_range);
+                init_swscale(ctx, frame->format);
+                ctx->pix_fmt = frame->format;
+            }
             if (frame->width != ctx->width || frame->height != ctx->height ||
-                frame->format != AV_PIX_FMT_YUV420P) {
+                frame->format != ctx->pix_fmt) {
                 /* To handle this change, one could call av_image_alloc again and
                  * decode the following frames into another rawvideo file. */
                 fprintf(stderr, "Error: Width, height and pixel format have to be "
@@ -110,7 +126,7 @@ static int decode_packet(struct FastvioCtx* ctx, int *got_frame, int cached)
                         "pixel format of the input video changed:\n"
                         "old: width = %d, height = %d, format = %s\n"
                         "new: width = %d, height = %d, format = %s\n",
-                        ctx->width, ctx->height, av_get_pix_fmt_name(AV_PIX_FMT_YUV420P),
+                        ctx->width, ctx->height, av_get_pix_fmt_name(ctx->pix_fmt),
                         frame->width, frame->height,
                         av_get_pix_fmt_name(frame->format));
                 return -1;
@@ -256,13 +272,16 @@ int init_decoder(struct FastvioCtx* ctx, int thread_mode, int num_threads) {
         return -1;
     }
     
+    //enum AVPixelFormat pix_fmt = ctx->video_dec_ctx->pix_fmt;
+    //printf("Pixel Format: %s\n", av_get_pix_fmt_name(pix_fmt));
+    
     /* dump input information to stderr */
     //av_dump_format(ctx->fmt_ctx, 0, ctx->src_filename, 0);
     
     /* Init SwScale for converting YUV420 to RGB */
-    ctx->sws_context = sws_getContext(ctx->video_dec_ctx->width, ctx->video_dec_ctx->height, AV_PIX_FMT_YUV420P, // src
-                                ctx->video_dec_ctx->width, ctx->video_dec_ctx->height, AV_PIX_FMT_RGB24,   // dst
-                                0, NULL, NULL, NULL);
+    //ctx->sws_context = sws_getContext(ctx->video_dec_ctx->width, ctx->video_dec_ctx->height, AV_PIX_FMT_YUV420P, // src
+    //                            ctx->video_dec_ctx->width, ctx->video_dec_ctx->height, AV_PIX_FMT_RGB24,   // dst
+    //                            0, NULL, NULL, NULL);
     
     ctx->frame = av_frame_alloc();
     if (!ctx->frame) {
