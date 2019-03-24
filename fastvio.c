@@ -113,7 +113,7 @@ static int decode_packet(struct FastvioCtx* ctx, int *got_frame, int cached)
         if (*got_frame) {
             /* If this is the first frame we get, init swscale and set ctx->pix_fmt */
             if (ctx->sws_context == NULL) {
-                printf("color_range: %d\n",ctx->video_dec_ctx->color_range);
+                //printf("color_range: %d\n",ctx->video_dec_ctx->color_range);
                 init_swscale(ctx, frame->format);
                 ctx->pix_fmt = frame->format;
             }
@@ -301,6 +301,19 @@ int init_decoder(struct FastvioCtx* ctx, int thread_mode, int num_threads) {
 /* Initialize FFMPEG instance */
 void init_ffmpeg() {
     av_register_all();
+    // Set FFmpeg log level
+    /*
+     *  { "quiet"  , AV_LOG_QUIET   },
+     *  { "panic"  , AV_LOG_PANIC   },
+     *  { "fatal"  , AV_LOG_FATAL   },
+     *  { "error"  , AV_LOG_ERROR   },
+     *  { "warning", AV_LOG_WARNING },
+     *  { "info"   , AV_LOG_INFO    },
+     *  { "verbose", AV_LOG_VERBOSE },
+     *  { "debug"  , AV_LOG_DEBUG   },
+        { "trace"  , AV_LOG_TRACE   },
+     */
+    av_log_set_level(AV_LOG_ERROR);
     printf("[FastVIO] init done!\n");
 }
 
