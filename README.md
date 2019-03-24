@@ -7,6 +7,16 @@
 ## To test:
 `python3.6 test.py`
 
+## Doc:
+
+ctx = open(file_path)  
+close(ctx)  
+{(frame, pts, iskf) or None} = grab\_frame(ctx, keyframe\_only=False)  
+seek(ctx, pts)  
+duration_pts = get\_duration(ctx)  
+print_dbg(ctx)  
+
+
 ## To remux any video to mkv container (and discard audio):
 `ffmpeg -hide_banner -loglevel panic -y -i src_vid_path -map 0:v:0 -codec copy dst_vid_path`
 
